@@ -546,11 +546,25 @@ private struct TableScrollConfigurator: NSViewRepresentable {
 // MARK: - SortHintBadges
 
 /// Shows each sort shortcut as a badge at the right edge of its column header while ⌘ is held.
-/// Badges are absolutely-positioned subviews INSIDE the table's header view, so they never change
-/// any layout, and they ride along with column resizing and horizontal scrolling for free.
+/// Badges are absolutely-positioned subviews INSIDE the table's header view and repositioned when columns
+/// move or resize. Horizontal scrolling moves them with the header.
 @MainActor
-final class SortHintBadges {
+final class SortHintBadges: NSObject {
     static let shared = SortHintBadges()
+
+    override private init() {
+        super.init()
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(columnsChanged(_:)), name: NSTableView.columnDidMoveNotification, object: nil)
+        center.addObserver(self, selector: #selector(columnsChanged(_:)), name: NSTableView.columnDidResizeNotification, object: nil)
+    }
+
+    @objc private func columnsChanged(_ notification: Notification) {
+        guard let table = notification.object as? NSTableView,
+              table === TableRegistry.shared.headerTableView || table === TableRegistry.shared.stashTableView
+        else { return }
+        setVisible(hintsVisible)
+    }
 
     func setVisible(_ visible: Bool) {
         hintsVisible = visible
@@ -581,7 +595,7 @@ final class SortHintBadges {
     /// headers when they move between the stash and results tables.
     func syncScoreButton() {
         guard let table = TableRegistry.shared.headerTableView, let header = table.headerView,
-              !table.tableColumns.isEmpty
+              let iconColumn = table.tableColumns.firstIndex(where: { $0.title.isEmpty })
         else {
             scoreHost?.removeFromSuperview()
             scoreHost = nil
@@ -597,7 +611,7 @@ final class SortHintBadges {
             header.addSubview(host)
         }
         host.frame.size = host.fittingSize
-        let colRect = table.rect(ofColumn: 0)
+        let colRect = table.rect(ofColumn: iconColumn)
         host.frame.origin = NSPoint(
             // Center in the icon column; a wider hint badge left-anchors and overflows rightward.
             x: colRect.minX + max(2, (colRect.width - host.frame.width) / 2),
@@ -609,7 +623,7 @@ final class SortHintBadges {
     /// column's header that clears the stash, swapped for the clear-shortcut badge while ⌘ is held.
     func syncStashClearButton() {
         guard let table = TableRegistry.shared.stashTableView, let header = table.headerView,
-              !table.tableColumns.isEmpty
+              let iconColumn = table.tableColumns.firstIndex(where: { $0.title.isEmpty })
         else {
             stashClearHost?.removeFromSuperview()
             stashClearHost = nil
@@ -625,7 +639,7 @@ final class SortHintBadges {
             header.addSubview(host)
         }
         host.frame.size = host.fittingSize
-        let colRect = table.rect(ofColumn: 0)
+        let colRect = table.rect(ofColumn: iconColumn)
         host.frame.origin = NSPoint(
             x: colRect.minX + max(2, (colRect.width - host.frame.width) / 2),
             y: (header.frame.height - host.frame.height) / 2

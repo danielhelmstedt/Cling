@@ -341,7 +341,8 @@ struct ContentView: View {
     @State private var renamedPaths: [FilePath]? = nil
     @State private var fuzzy: FuzzyClient = FUZZY
     @State private var everything = EVERYTHING
-    @State private var resultColumns = TableColumnCustomization<FilePath>()
+    @AppStorage("resultColumnCustomization") private var resultColumns = TableColumnCustomization<FilePath>()
+    @AppStorage("stashColumnCustomization") private var stashColumns = TableColumnCustomization<FilePath>()
     @State private var stash: StashManager = STASH
     @ObservedObject private var km = KM
     @State private var sortHintsVisible = false
@@ -606,7 +607,10 @@ struct ContentView: View {
             // revealed on hover without the per-row measuring that would slow scrolling.
             let name = path.name.string
             Text(name).font(.scaled(12)).lineLimit(1).truncationMode(.middle).help(name)
-        }.width(min: FontScale.length(100), ideal: FontScale.length(200))
+        }
+        .width(min: FontScale.length(100), ideal: FontScale.length(200))
+        .customizationID("name")
+        .disabledCustomizationBehavior(.visibility)
     }
 
     /// Which external drive each result is on, while results can come from more than one: hidden by default and shown
@@ -635,20 +639,29 @@ struct ContentView: View {
         TableColumn("Path", value: \.dir.string) { path in
             let dir = path.dir.shellString
             Text(dir).font(.scaled(12, design: .rounded)).tracking(-0.2).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary).help(dir)
-        }.width(min: FontScale.length(100), ideal: FontScale.length(300))
+        }
+        .width(min: FontScale.length(100), ideal: FontScale.length(300))
+        .customizationID("path")
+        .disabledCustomizationBehavior(.visibility)
     }
 
     private var sizeColumn: some TableColumnContent<FilePath, KeyPathComparator<FilePath>> {
         TableColumn("Size", value: \.memoz.size) { path in
             Text(path.memoz.humanizedFileSize).font(.scaled(11, design: .monospaced)).lineLimit(1)
-        }.width(min: FontScale.length(60), ideal: FontScale.length(80))
+        }
+        .width(min: FontScale.length(60), ideal: FontScale.length(80))
+        .customizationID("size")
+        .disabledCustomizationBehavior(.visibility)
     }
 
     private var dateColumn: some TableColumnContent<FilePath, KeyPathComparator<FilePath>> {
         TableColumn("Date Modified", value: \.memoz.date) { path in
             let date = path.memoz.formattedModificationDate
             Text(date).font(.scaled(11, design: .monospaced)).lineLimit(1).help(date)
-        }.width(min: FontScale.length(100), ideal: FontScale.length(160))
+        }
+        .width(min: FontScale.length(100), ideal: FontScale.length(160))
+        .customizationID("date")
+        .disabledCustomizationBehavior(.visibility)
     }
 
     /// Whether any of the three toolbar rows is actually on screen. When none is, the rows
@@ -1614,7 +1627,7 @@ struct ContentView: View {
     }
 
     private func stashTable(height: CGFloat, locked: Bool) -> some View {
-        Table(of: FilePath.self, selection: $selectedResultIDs, sortOrder: $sortOrder) {
+        Table(of: FilePath.self, selection: $selectedResultIDs, sortOrder: $sortOrder, columnCustomization: $stashColumns) {
             iconColumn
             nameColumn
             pathColumn
